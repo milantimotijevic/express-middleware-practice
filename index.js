@@ -3,6 +3,13 @@ const bodyParser = require('body-parser');
 
 const app = express();
 app.use(bodyParser.json());
+// imitation of authentication middleware
+app.use(function(req, res, next) {
+    if(req.query.name === 'pera') {
+        req.authentication = 'this guy is totally fine';
+    }
+    next();
+});
 
 app.get('/stuff', function(req, res, next) {
     console.log('logging from /stuff');
@@ -31,6 +38,15 @@ app.get('/whatever', function(req, res, next) {
 app.get('/whatever', function(req, res, next) {
     console.log('logging from post whatever');
     res.send('To bear a Ring of Power is to be alone.');
+});
+
+app.get('/products', function(req, res, next) {
+    if(req.authentication !== 'this guy is totally fine') {
+        return res.send('BE GONE, SPAWN OF DARKNESS!');
+    }
+    res.send({
+        inStock: ['Flying Broom', 'Human Decency', 'Used Screw Driver', 'Fake Mustache', 'Half Life 3 - Ultimate Edition']
+    });
 });
 
 app.use(function(err, req, res, next) {
