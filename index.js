@@ -1,15 +1,65 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const randomstring = require("randomstring");
+require('./db-handler');
+const User = require('./model/User');
 
 const app = express();
 app.use(bodyParser.json());
-// imitation of authentication middleware
-app.use(function(req, res, next) {
-    if(req.query.name === 'pera') {
-        req.authentication = 'this guy is totally fine';
-    }
-    next();
+// error handler
+app.use(function(err, req, res, next) {
+    console.log('logging error');
+    console.log(err);
+    res.status(500).send('OMG this is the end of the world!');
 });
+
+// // imitation of authentication middleware
+// app.use(function(req, res, next) {
+//     if(req.query.name === 'pera') {
+//         req.authentication = 'this guy is totally fine';
+//     }
+//     next();
+// });
+
+app.post('/register', function(req, res, next) {
+    const user = req.body;
+    if(!user || !user.email || !user.password) {
+        return res.status(400).send('I BEG TO DIFFER!');
+    }
+    const newUser = new User(user);
+    newUser.save(function(err, result) {
+        if(err) throw err;
+        res.send('Registration successful :))))))');
+    });
+});
+
+app.post('/login', function(req, res, next) {
+    const token = randomstring.generate();
+    const tokenExpiration = new Date();
+    tokenExpiration.setMinutes(tokenExpiration.getMinutes() + 1);
+    User.findOneAndUpdate({email: req.body.email, password: req.body.password}, {$set: {token: token, tokenExpiration: tokenExpiration}, }, {new: true}, function(err, result) {
+        if(err) throw err;
+        if(!result) {
+            return res.status(400).send('HA! Nice try, Mr. Hacker!');
+        }
+        res.set('token', result.token);
+        res.send('All good, check headers for access token :))))');
+    });
+});
+
+// another imitation of authentication middleware
+app.use(function(req, res, next) {
+    User.findOne({token: req.headers.token}, function(err, result) {
+        if(err) throw err;
+        const now = new Date();
+        if(!result || !result.tokenExpiration || now > result.tokenExpiration) {
+            return res.status(400).send('YOUUUUUUUU SHALL NOOOOOOT...... PAAAAAAAAAAASSSSS!!!');
+        }
+        req.user = result;
+        next();
+    });
+});
+
 
 app.get('/stuff', function(req, res, next) {
     console.log('logging from /stuff');
@@ -40,6 +90,7 @@ app.get('/whatever', function(req, res, next) {
     res.send('To bear a Ring of Power is to be alone.');
 });
 
+// used with first imitation of authentication middleware
 app.get('/products', function(req, res, next) {
     if(req.authentication !== 'this guy is totally fine') {
         return res.send('BE GONE, SPAWN OF DARKNESS!');
@@ -49,11 +100,22 @@ app.get('/products', function(req, res, next) {
     });
 });
 
-app.use(function(err, req, res, next) {
-    console.log('logging error');
-    console.log(err);
-    res.status(500).send('OMG this is the end of the world!');
+app.get('/employees', function(req, res, next) {
+    res.send({
+        employees: ['Pera Peric', 'Mika Mikic', 'Your Mom']
+    });
+    refreshToken(req.user);
 });
+
+function refreshToken(user) {
+    const tokenExpiration = new Date();
+    tokenExpiration.setMinutes(tokenExpiration.getMinutes() + 1);
+    user.tokenExpiration = tokenExpiration;
+    user.save(function(err, result) {
+        if(err) throw err;
+        // token updated
+    });
+}
 
 app.listen(3000, function() {
     console.log('Prismatic Core: Online');
